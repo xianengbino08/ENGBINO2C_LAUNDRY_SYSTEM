@@ -1,28 +1,37 @@
-package ui;
+package com.laundry.ui;
 
-import dao.UserDao;
-import model.User;
+import com.laundry.dao.UserDao;
+import com.laundry.model.User;
 
 import java.util.Scanner;
 
-public class MainMenu {
+/**
+ * Handles the main menu, registration, login, and sends each logged-in user
+ * to the menu for their role. No SQL here, only calls to UserDao.
+ */
+public class Authentication {
 
-    // The roles a user can pick when registering. Change these words if needed.
+    // Roles from Section 2 of the approved proposal
     private static final String[] ROLES = {"ADMIN", "STAFF", "CUSTOMER"};
 
-    private final Scanner sc = new Scanner(System.in);
-    private final UserDao userDao = new UserDao();
+    private final UserDao userDao;    // shared instance
+    private final Scanner scanner;    // shared instance
 
-    public void show() {
+    public Authentication(UserDao userDao, Scanner scanner) {
+        this.userDao = userDao;
+        this.scanner = scanner;
+    }
+
+    public void start() {
         boolean running = true;
 
         while (running) {
-            System.out.println("\n===== MAIN MENU =====");
+            System.out.println("\n===== LAUNDRY SHOP - MAIN MENU =====");
             System.out.println("1. Register");
             System.out.println("2. Login");
             System.out.println("3. Exit");
             System.out.print("Choose: ");
-            String choice = sc.nextLine().trim();
+            String choice = scanner.nextLine().trim();
 
             if (choice.equals("1")) {
                 register();
@@ -39,13 +48,15 @@ public class MainMenu {
 
     private void register() {
         System.out.println("\n--- REGISTER ---");
+        System.out.print("Full name: ");
+        String fullName = scanner.nextLine().trim();
         System.out.print("Username: ");
-        String username = sc.nextLine().trim();
+        String username = scanner.nextLine().trim();
         System.out.print("Password: ");
-        String password = sc.nextLine().trim();
+        String password = scanner.nextLine().trim();
 
-        if (username.isEmpty() || password.isEmpty()) {
-            System.out.println("Username and password are required.");
+        if (fullName.isEmpty() || username.isEmpty() || password.isEmpty()) {
+            System.out.println("All fields are required. Registration cancelled.");
             return;
         }
         if (userDao.usernameExists(username)) {
@@ -61,7 +72,7 @@ public class MainMenu {
 
         int pick;
         try {
-            pick = Integer.parseInt(sc.nextLine().trim());
+            pick = Integer.parseInt(scanner.nextLine().trim());
         } catch (NumberFormatException e) {
             pick = 0;
         }
@@ -71,10 +82,10 @@ public class MainMenu {
         }
 
         // new accounts always start as PENDING
-        User user = new User(0, username, password, ROLES[pick - 1], "PENDING");
+        User newUser = new User(0, username, password, fullName, ROLES[pick - 1], "PENDING");
 
-        if (userDao.register(user)) {
-            System.out.println("Registered successfully! Status: PENDING");
+        if (userDao.register(newUser)) {
+            System.out.println("Registered successfully! Role: " + ROLES[pick - 1] + " | Status: PENDING");
         } else {
             System.out.println("Registration failed.");
         }
@@ -83,18 +94,28 @@ public class MainMenu {
     private void login() {
         System.out.println("\n--- LOGIN ---");
         System.out.print("Username: ");
-        String username = sc.nextLine().trim();
+        String username = scanner.nextLine().trim();
         System.out.print("Password: ");
-        String password = sc.nextLine().trim();
+        String password = scanner.nextLine().trim();
 
         User user = userDao.login(username, password);
 
         if (user == null) {
             System.out.println("\n*** LOGIN FAILED: Wrong username or password. ***");
             System.out.print("Press Enter to go back to the main menu...");
-            sc.nextLine();   // waits so you can read the message
+            scanner.nextLine();
         } else {
-            new UserMenu(user, sc).show();
+            routeToMenu(user);
+        }
+    }
+
+    // sends the user to the menu that matches their role
+    private void routeToMenu(User user) {
+        switch (user.role()) {
+            case "ADMIN"    -> new AdminMenu(user, userDao, scanner).show();
+            case "STAFF"    -> new StaffMenu(user, userDao, scanner).show();
+            case "CUSTOMER" -> new CustomerMenu(user, userDao, scanner).show();
+            default         -> System.out.println("Unknown role: " + user.role());
         }
     }
 }
