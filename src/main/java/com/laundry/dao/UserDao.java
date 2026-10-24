@@ -10,13 +10,11 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 
-// DAO = Data Access Object. All SQL for users (and the customer profile) is here.
 public class UserDao {
 
-    // CREATE: save a new user. A CUSTOMER also gets a row in the customers table.
     public boolean register(User user) {
         String insertUser = "INSERT INTO users (username, password, full_name, role, status) "
-                          + "VALUES (?, ?, ?, ?, ?)";
+                + "VALUES (?, ?, ?, ?, ?)";
         String insertCustomer = "INSERT INTO customers (user_id, full_name) VALUES (?, ?)";
 
         try (Connection conn = DatabaseConnection.getConnection()) {
@@ -79,7 +77,7 @@ public class UserDao {
     // READ: check username and password. Returns the User, or null if wrong.
     public User login(String username, String password) {
         String sql = "SELECT user_id, username, password, full_name, role, status "
-                   + "FROM users WHERE username = ? AND password = ?";
+                + "FROM users WHERE username = ? AND password = ?";
 
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -96,10 +94,10 @@ public class UserDao {
         return null;
     }
 
-    // READ: every user (used by the Admin menu)
-    public List<User> findAll() {
+    // READ: every registered account, whatever the role
+    public List<User> getAllUsers() {
         String sql = "SELECT user_id, username, password, full_name, role, status "
-                   + "FROM users ORDER BY user_id";
+                + "FROM users ORDER BY user_id";
         List<User> users = new ArrayList<>();
 
         try (Connection conn = DatabaseConnection.getConnection();
@@ -114,13 +112,48 @@ public class UserDao {
         return users;
     }
 
+    // READ: accounts still waiting for approval, across all roles
+    public List<User> getPendingUsers() {
+        String sql = "SELECT user_id, username, password, full_name, role, status "
+                + "FROM users WHERE status = ? ORDER BY user_id";
+        List<User> users = new ArrayList<>();
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, "PENDING");
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    users.add(toUser(rs));
+                }
+            }
+        } catch (SQLException e) {
+            System.out.println("Database error: " + e.getMessage());
+        }
+        return users;
+    }
+
+    // UPDATE: change one account from PENDING to APPROVED.
+    // Returns true if a row was really changed.
+    public boolean approveUser(int userId) {
+        String sql = "UPDATE users SET status = 'APPROVED' WHERE user_id = ? AND status = 'PENDING'";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, userId);
+            return ps.executeUpdate() > 0;
+        } catch (SQLException e) {
+            System.out.println("Database error: " + e.getMessage());
+            return false;
+        }
+    }
+
     // turns one row into a User record
     private User toUser(ResultSet rs) throws SQLException {
         return new User(rs.getInt("user_id"),
-                        rs.getString("username"),
-                        rs.getString("password"),
-                        rs.getString("full_name"),
-                        rs.getString("role"),
-                        rs.getString("status"));
+                rs.getString("username"),
+                rs.getString("password"),
+                rs.getString("full_name"),
+                rs.getString("role"),
+                rs.getString("status"));
     }
 }
