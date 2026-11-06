@@ -18,7 +18,7 @@ public class UserDao {
         String insertCustomer = "INSERT INTO customers (user_id, full_name) VALUES (?, ?)";
 
         try (Connection conn = DatabaseConnection.getConnection()) {
-            conn.setAutoCommit(false);   // both inserts succeed together or not at all
+            conn.setAutoCommit(false);
             try {
                 int newId = 0;
 
@@ -58,7 +58,6 @@ public class UserDao {
         }
     }
 
-    // READ: is this username already used?
     public boolean usernameExists(String username) {
         String sql = "SELECT user_id FROM users WHERE username = ?";
 
@@ -74,7 +73,6 @@ public class UserDao {
         }
     }
 
-    // READ: check username and password. Returns the User, or null if wrong.
     public User login(String username, String password) {
         String sql = "SELECT user_id, username, password, full_name, role, status "
                 + "FROM users WHERE username = ? AND password = ?";
@@ -94,7 +92,6 @@ public class UserDao {
         return null;
     }
 
-    // READ: every registered account, whatever the role
     public List<User> getAllUsers() {
         String sql = "SELECT user_id, username, password, full_name, role, status "
                 + "FROM users ORDER BY user_id";
@@ -112,7 +109,6 @@ public class UserDao {
         return users;
     }
 
-    // READ: accounts still waiting for approval, across all roles
     public List<User> getPendingUsers() {
         String sql = "SELECT user_id, username, password, full_name, role, status "
                 + "FROM users WHERE status = ? ORDER BY user_id";
@@ -132,8 +128,6 @@ public class UserDao {
         return users;
     }
 
-    // UPDATE: change one account from PENDING to APPROVED.
-    // Returns true if a row was really changed.
     public boolean approveUser(int userId) {
         String sql = "UPDATE users SET status = 'APPROVED' WHERE user_id = ? AND status = 'PENDING'";
 
@@ -147,7 +141,21 @@ public class UserDao {
         }
     }
 
-    // turns one row into a User record
+    public boolean updateUserRoleAndStatus(int userId, String newRole, String newStatus) {
+        String sql = "UPDATE users SET role = ?, status = ? WHERE user_id = ?";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, newRole.toUpperCase());
+            ps.setString(2, newStatus.toUpperCase());
+            ps.setInt(3, userId);
+            return ps.executeUpdate() > 0;
+        } catch (SQLException e) {
+            System.out.println("Database error: " + e.getMessage());
+            return false;
+        }
+    }
+
     private User toUser(ResultSet rs) throws SQLException {
         return new User(rs.getInt("user_id"),
                 rs.getString("username"),

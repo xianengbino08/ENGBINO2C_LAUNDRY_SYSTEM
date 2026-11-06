@@ -27,9 +27,10 @@ public class AdminMenu {
             System.out.println("1. View all system users");
             System.out.println("2. View pending registrations");
             System.out.println("3. Approve user account");
-            System.out.println("4. Manage service rates (coming soon)");
-            System.out.println("5. View activity logs (coming soon)");
-            System.out.println("6. Logout");
+            System.out.println("4. Update user role and status");
+            System.out.println("5. Manage service rates (coming soon)");
+            System.out.println("6. View activity logs (coming soon)");
+            System.out.println("7. Logout");
             System.out.print("Choose: ");
             String choice = scanner.nextLine().trim();
 
@@ -39,18 +40,18 @@ public class AdminMenu {
                 viewPendingUsers();
             } else if (choice.equals("3")) {
                 approveUser();
-            } else if (choice.equals("4") || choice.equals("5")) {
+            } else if (choice.equals("4")) {
+                updateUser();
+            } else if (choice.equals("5") || choice.equals("6")) {
                 System.out.println("This feature will be built next.");
-            } else if (choice.equals("6")) {
+            } else if (choice.equals("7")) {
                 System.out.println("You have been logged out.");
-                loggedIn = false;   // back to the main menu
+                loggedIn = false;
             } else {
                 System.out.println("Invalid choice.");
             }
         }
     }
-
-    // ---------- menu actions ----------
 
     private void viewAllUsers() {
         System.out.println("\n--- ALL SYSTEM USERS ---");
@@ -89,7 +90,6 @@ public class AdminMenu {
                 return;
             }
 
-            // make sure the ID is really in the pending list
             User target = findById(pending, id);
             if (target == null) {
                 System.out.println("User ID " + id + " is not in the pending list. Try again.");
@@ -106,7 +106,92 @@ public class AdminMenu {
         }
     }
 
-    // ---------- helpers ----------
+    private void updateUser() {
+        System.out.println("\n--- UPDATE USER ROLE AND STATUS ---");
+        List<User> users = userDao.getAllUsers();
+        printUserTable(users);
+
+        User target;
+        while (true) {
+            int targetUserId = readIntInput("Enter the User ID to update (0 to cancel): ");
+
+            if (targetUserId == 0) {
+                System.out.println("Update cancelled.");
+                return;
+            }
+            if (targetUserId == user.userId()) {
+                System.out.println("WARNING: Modifying the currently active admin account is restricted.");
+                return;
+            }
+            target = findById(users, targetUserId);
+            if (target == null) {
+                System.out.println("User ID " + targetUserId + " does not exist. Try again.");
+                continue;
+            }
+            break;
+        }
+
+        String newRole = readValidRole();
+        if (newRole == null) {
+            System.out.println("Update cancelled.");
+            return;
+        }
+
+        String newStatus = readValidStatus();
+        if (newStatus == null) {
+            System.out.println("Update cancelled.");
+            return;
+        }
+
+        if (userDao.updateUserRoleAndStatus(target.userId(), newRole, newStatus)) {
+            System.out.println("SUCCESS: " + target.username() + " is now " + newRole
+                    + " | " + newStatus + ".");
+        } else {
+            System.out.println("Update failed. Please try again.");
+        }
+    }
+
+    private int readIntInput(String prompt) {
+        while (true) {
+            System.out.print(prompt);
+            String input = scanner.nextLine().trim();
+            try {
+                return Integer.parseInt(input);
+            } catch (NumberFormatException e) {
+                System.out.println("Invalid input. Please enter a number.");
+            }
+        }
+    }
+
+    private String readValidRole() {
+        while (true) {
+            System.out.print("Enter new role (ADMIN / STAFF / CUSTOMER, 0 to cancel): ");
+            String role = scanner.nextLine().trim().toUpperCase();
+
+            if (role.equals("0")) {
+                return null;
+            }
+            if (role.equals("ADMIN") || role.equals("STAFF") || role.equals("CUSTOMER")) {
+                return role;
+            }
+            System.out.println("Invalid role. Choose ADMIN, STAFF, or CUSTOMER.");
+        }
+    }
+
+    private String readValidStatus() {
+        while (true) {
+            System.out.print("Enter new status (APPROVED / PENDING, 0 to cancel): ");
+            String status = scanner.nextLine().trim().toUpperCase();
+
+            if (status.equals("0")) {
+                return null;
+            }
+            if (status.equals("APPROVED") || status.equals("PENDING")) {
+                return status;
+            }
+            System.out.println("Invalid status. Choose APPROVED or PENDING.");
+        }
+    }
 
     private User findById(List<User> users, int id) {
         for (User u : users) {
@@ -117,7 +202,6 @@ public class AdminMenu {
         return null;
     }
 
-    // Prints any list of users as an aligned table with borders.
     private void printUserTable(List<User> users) {
         if (users.isEmpty()) {
             System.out.println("No users found.");
