@@ -1,13 +1,11 @@
 package com.laundry.dao;
 
 import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 
-/**
- * Creates every table from the approved ERD if it does not exist yet.
- * Runs once at startup, before any menu is shown.
- */
 public class DatabaseInitializer {
 
     private static final String CREATE_USERS = """
@@ -64,19 +62,40 @@ public class DatabaseInitializer {
 
     private static final String CREATE_ACTIVITY_LOGS = """
             CREATE TABLE IF NOT EXISTS activity_logs (
-                log_id       INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id      INTEGER,
-                action       TEXT NOT NULL,
-                description  TEXT,
-                log_datetime TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users(user_id)
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id     INTEGER NOT NULL,
+                action_type TEXT NOT NULL,
+                description TEXT,
+                timestamp   TIMESTAMP DEFAULT (datetime('now', 'localtime')),
+                FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
             )
             """;
+
+    private static void seedServices(Connection conn) throws SQLException {
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery("SELECT COUNT(*) FROM service_rates")) {
+            rs.next();
+            if (rs.getInt(1) > 0) {
+                return;
+            }
+        }
+
+        String sql = "INSERT INTO service_rates (service_name, rate_per_kg) VALUES (?, ?)";
+        String[] names = {"Wash Only", "Wash and Dry", "Wash Dry and Fold"};
+        double[] rates = {30.0, 50.0, 70.0};
+
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            for (int i = 0; i < names.length; i++) {
+                ps.setString(1, names[i]);
+                ps.setDouble(2, rates[i]);
+                ps.executeUpdate();
+            }
+        }
+    }
 
     public static void initialize() {
         System.out.println("Initializing database...");
 
-        // order matters: tables that are referenced come first
         String[] statements = {
                 CREATE_USERS,
                 CREATE_CUSTOMERS,
@@ -90,10 +109,11 @@ public class DatabaseInitializer {
             for (String sql : statements) {
                 st.execute(sql);
             }
+            seedServices(conn);
             System.out.println("Database ready: all 5 tables exist.");
         } catch (SQLException e) {
             System.out.println("Could not initialize the database: " + e.getMessage());
-            System.exit(1);   // no point running the app without a database
+            System.exit(1);
         }
     }
 }

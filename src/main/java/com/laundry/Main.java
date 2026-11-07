@@ -19,3 +19,5 @@ public class Main {
         scanner.close();
     }
 }
+2
+x

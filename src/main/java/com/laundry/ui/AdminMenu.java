@@ -1,6 +1,8 @@
 package com.laundry.ui;
 
+import com.laundry.dao.ActivityLogDao;
 import com.laundry.dao.UserDao;
+import com.laundry.model.ActivityLog;
 import com.laundry.model.User;
 
 import java.util.List;
@@ -11,6 +13,7 @@ public class AdminMenu {
     private final User user;
     private final UserDao userDao;
     private final Scanner scanner;
+    private final ActivityLogDao logDao = new ActivityLogDao();
 
     public AdminMenu(User user, UserDao userDao, Scanner scanner) {
         this.user = user;
@@ -29,7 +32,7 @@ public class AdminMenu {
             System.out.println("3. Approve user account");
             System.out.println("4. Update user role and status");
             System.out.println("5. Manage service rates (coming soon)");
-            System.out.println("6. View activity logs (coming soon)");
+            System.out.println("6. View system audit logs");
             System.out.println("7. Logout");
             System.out.print("Choose: ");
             String choice = scanner.nextLine().trim();
@@ -42,8 +45,10 @@ public class AdminMenu {
                 approveUser();
             } else if (choice.equals("4")) {
                 updateUser();
-            } else if (choice.equals("5") || choice.equals("6")) {
+            } else if (choice.equals("5")) {
                 System.out.println("This feature will be built next.");
+            } else if (choice.equals("6")) {
+                viewAuditLogs();
             } else if (choice.equals("7")) {
                 System.out.println("You have been logged out.");
                 loggedIn = false;
@@ -96,7 +101,7 @@ public class AdminMenu {
                 continue;
             }
 
-            if (userDao.approveUser(id)) {
+            if (userDao.approveUser(user.userId(), id)) {
                 System.out.println("SUCCESS: " + target.username() + " (" + target.role()
                         + ") has been APPROVED.");
             } else {
@@ -143,11 +148,34 @@ public class AdminMenu {
             return;
         }
 
-        if (userDao.updateUserRoleAndStatus(target.userId(), newRole, newStatus)) {
+        if (userDao.updateUserRoleAndStatus(user.userId(), target.userId(), newRole, newStatus)) {
             System.out.println("SUCCESS: " + target.username() + " is now " + newRole
                     + " | " + newStatus + ".");
         } else {
             System.out.println("Update failed. Please try again.");
+        }
+    }
+
+    private void viewAuditLogs() {
+        while (true) {
+            System.out.println("\n--- SYSTEM AUDIT LOGS ---");
+            System.out.println("1. View all system logs");
+            System.out.println("2. Filter logs by User ID");
+            System.out.println("3. Back");
+            int choice = readIntInput("Choose: ");
+
+            if (choice == 1) {
+                printLogTable(logDao.getAllLogs());
+            } else if (choice == 2) {
+                int id = readIntInput("Enter the User ID to filter (0 to cancel): ");
+                if (id != 0) {
+                    printLogTable(logDao.getLogsByUserId(id));
+                }
+            } else if (choice == 3) {
+                return;
+            } else {
+                System.out.println("Invalid choice.");
+            }
         }
     }
 
@@ -202,6 +230,13 @@ public class AdminMenu {
         return null;
     }
 
+    private String cut(String text, int max) {
+        if (text == null) {
+            return "";
+        }
+        return text.length() <= max ? text : text.substring(0, max - 3) + "...";
+    }
+
     private void printUserTable(List<User> users) {
         if (users.isEmpty()) {
             System.out.println("No users found.");
@@ -219,5 +254,26 @@ public class AdminMenu {
         }
         System.out.println(border);
         System.out.println("Total: " + users.size());
+    }
+
+    private void printLogTable(List<ActivityLog> logs) {
+        if (logs.isEmpty()) {
+            System.out.println("No logs found.");
+            return;
+        }
+
+        String border = "+" + "-".repeat(7) + "+" + "-".repeat(10) + "+" + "-".repeat(22)
+                + "+" + "-".repeat(37) + "+" + "-".repeat(22) + "+";
+        String row = "| %-5s | %-8s | %-20s | %-35s | %-20s |%n";
+
+        System.out.println(border);
+        System.out.printf(row, "ID", "USER ID", "ACTION", "DESCRIPTION", "TIMESTAMP");
+        System.out.println(border);
+        for (ActivityLog log : logs) {
+            System.out.printf(row, log.id(), log.userId(), log.actionType(),
+                    cut(log.description(), 35), log.timestamp());
+        }
+        System.out.println(border);
+        System.out.println("Total: " + logs.size());
     }
 }

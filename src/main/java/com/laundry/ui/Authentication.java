@@ -1,21 +1,18 @@
 package com.laundry.ui;
 
+import com.laundry.dao.ActivityLogDao;
 import com.laundry.dao.UserDao;
 import com.laundry.model.User;
 
 import java.util.Scanner;
 
-/**
- * Handles the main menu, registration, login, and sends each logged-in user
- * to the menu for their role. No SQL here, only calls to UserDao.
- */
 public class Authentication {
 
-    // Roles from Section 2 of the approved proposal
     private static final String[] ROLES = {"ADMIN", "STAFF", "CUSTOMER"};
 
-    private final UserDao userDao;    // shared instance
-    private final Scanner scanner;    // shared instance
+    private final UserDao userDao;
+    private final Scanner scanner;
+    private final ActivityLogDao logDao = new ActivityLogDao();
 
     public Authentication(UserDao userDao, Scanner scanner) {
         this.userDao = userDao;
@@ -81,7 +78,6 @@ public class Authentication {
             return;
         }
 
-        // new accounts always start as PENDING
         User newUser = new User(0, username, password, fullName, ROLES[pick - 1], "PENDING");
 
         if (userDao.register(newUser)) {
@@ -105,11 +101,14 @@ public class Authentication {
             System.out.print("Press Enter to go back to the main menu...");
             scanner.nextLine();
         } else {
+            logDao.logAction(user.userId(), "USER_LOGIN",
+                    "User " + user.username() + " (ID: " + user.userId() + ") logged in.");
             routeToMenu(user);
+            logDao.logAction(user.userId(), "USER_LOGOUT",
+                    "User " + user.username() + " (ID: " + user.userId() + ") logged out.");
         }
     }
 
-    // sends the user to the menu that matches their role
     private void routeToMenu(User user) {
         switch (user.role()) {
             case "ADMIN"    -> new AdminMenu(user, userDao, scanner).show();

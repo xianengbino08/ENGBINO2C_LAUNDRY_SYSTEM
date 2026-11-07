@@ -12,6 +12,8 @@ import java.util.List;
 
 public class UserDao {
 
+    private final ActivityLogDao logDao = new ActivityLogDao();
+
     public boolean register(User user) {
         String insertUser = "INSERT INTO users (username, password, full_name, role, status) "
                 + "VALUES (?, ?, ?, ?, ?)";
@@ -128,20 +130,25 @@ public class UserDao {
         return users;
     }
 
-    public boolean approveUser(int userId) {
+    public boolean approveUser(int adminId, int userId) {
         String sql = "UPDATE users SET status = 'APPROVED' WHERE user_id = ? AND status = 'PENDING'";
 
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, userId);
-            return ps.executeUpdate() > 0;
+            boolean done = ps.executeUpdate() > 0;
+            if (done) {
+                logDao.logAction(adminId, "USER_APPROVED",
+                        "Admin " + adminId + " approved User " + userId);
+            }
+            return done;
         } catch (SQLException e) {
             System.out.println("Database error: " + e.getMessage());
             return false;
         }
     }
 
-    public boolean updateUserRoleAndStatus(int userId, String newRole, String newStatus) {
+    public boolean updateUserRoleAndStatus(int adminId, int userId, String newRole, String newStatus) {
         String sql = "UPDATE users SET role = ?, status = ? WHERE user_id = ?";
 
         try (Connection conn = DatabaseConnection.getConnection();
@@ -149,7 +156,13 @@ public class UserDao {
             ps.setString(1, newRole.toUpperCase());
             ps.setString(2, newStatus.toUpperCase());
             ps.setInt(3, userId);
-            return ps.executeUpdate() > 0;
+            boolean done = ps.executeUpdate() > 0;
+            if (done) {
+                logDao.logAction(adminId, "USER_UPDATED",
+                        "Admin " + adminId + " set User " + userId + " to "
+                                + newRole.toUpperCase() + "/" + newStatus.toUpperCase());
+            }
+            return done;
         } catch (SQLException e) {
             System.out.println("Database error: " + e.getMessage());
             return false;
